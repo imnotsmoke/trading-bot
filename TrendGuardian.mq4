@@ -295,7 +295,12 @@ bool CanOpenTrade()
 //+------------------------------------------------------------------+
 double GetSpreadInPips()
 {
-   return (Ask - Bid) / Point;
+   // Handle both 4-digit (Point=0.0001) and 5-digit (Point=0.00001) brokers
+   // For JPY pairs: Digits=3 means Point=0.001, pip=0.01 (10*Point)
+   double pipSize = Point;
+   if(Digits == 3 || Digits == 5)
+      pipSize = Point * 10.0;
+   return (Ask - Bid) / pipSize;
 }
 
 //+------------------------------------------------------------------+
