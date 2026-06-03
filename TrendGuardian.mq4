@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "AlgoEdge Trading"
 #property link      "https://github.com/imnotsmoke/trading-bot"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 #property description "Trend Guardian EA - Conservative Trend Following System"
 #property description "EMA crossover + ADX filter + ATR-based risk management"
@@ -15,6 +15,7 @@
 //+------------------------------------------------------------------+
 // --- Risk Management ---
 input double   RiskPercent         = 1.0;      // % of equity to risk per trade
+input double   FixedLotSize        = 0.0;      // Fixed lot size (0.0 = use risk-based calculation)
 input int      MagicNumber         = 880123;   // Unique ID for EA orders
 
 // --- Strategy Parameters ---
@@ -85,17 +86,33 @@ int OnInit()
       Print("ERROR: StartHour and EndHour must be between 0 and 23");
       return INIT_PARAMETERS_INCORRECT;
    }
+   if(FixedLotSize < 0.0)
+   {
+      Print("ERROR: FixedLotSize cannot be negative");
+      return INIT_PARAMETERS_INCORRECT;
+   }
 
    // Initialize daily equity tracking
    dailyStartingEquity = AccountEquity();
    lastDayOfMonth = Day();
    dailyLossStopReached = false;
 
-   Print("Trend Guardian EA v1.00 initialized successfully");
+   Print("Trend Guardian EA v1.01 initialized successfully");
    Print("Magic Number: ", MagicNumber);
    Print("Risk: ", RiskPercent, "% per trade");
+   Print("Fixed Lot Size: ", (FixedLotSize > 0.0) ? DoubleToString(FixedLotSize, 2) + " (fixed mode)" : "0.0 (risk-based mode)");
    Print("Time Filter: ", EnableTimeFilter ? "Enabled (" + IntegerToString(StartHour) + ":00-" + IntegerToString(EndHour) + ":00)" : "Disabled");
    Print("Max Spread: ", MaxSpread, " pips");
+
+   // Warn if fixed lot size is below broker minimum
+   if(FixedLotSize > 0.0)
+   {
+      double minLot = MarketInfo(Symbol(), MODE_MINLOT);
+      if(FixedLotSize < minLot)
+      {
+         Print("WARNING: FixedLotSize (", DoubleToString(FixedLotSize, 2), ") is below broker minimum (", minLot, "). Lot will be rounded up to minimum.");
+      }
+   }
 
    return(INIT_SUCCEEDED);
 }
@@ -425,6 +442,24 @@ void OpenTrade(int orderType, double bid, double ask, double atrValue)
 //+------------------------------------------------------------------+
 double CalculateLotSize(int orderType, double atrValue)
 {
+   // --- Fixed lot size mode ---
+   if(FixedLotSize > 0.0)
+   {
+      double minLot = MarketInfo(Symbol(), MODE_MINLOT);
+      double maxLot = MarketInfo(Symbol(), MODE_MAXLOT);
+      double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
+
+      double lots = MathMax(FixedLotSize, minLot);
+      lots = MathMin(lots, maxLot);
+      lots = MathFloor(lots / lotStep) * lotStep;
+      lots = NormalizeDouble(lots, 2);
+
+      Print("Position Sizing (FIXED): FixedLotSize=", DoubleToString(FixedLotSize, 2),
+            ", Adjusted lots=", DoubleToString(lots, 2));
+      return(lots);
+   }
+
+   // --- Risk-based calculation (default) ---
    double equity = AccountEquity();
    double riskAmount = equity * (RiskPercent / 100.0);
 
