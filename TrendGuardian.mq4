@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "AlgoEdge Trading"
 #property link      "https://github.com/imnotsmoke/trading-bot"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
-#property description "Trend Guardian EA - Conservative Trend Following System"
-#property description "EMA crossover + ADX filter + ATR-based risk management"
+#property description "Trend Guardian EA - Aggressive Daily Trading System"
+#property description "Faster EMA crossover + ADX filter + Metal-compatible spread handling"
 
 //+------------------------------------------------------------------+
 //| EA Parameters (User Configurable)                                |
@@ -19,27 +19,27 @@ input double   FixedLotSize        = 0.0;      // Fixed lot size (0.0 = use risk
 input int      MagicNumber         = 880123;   // Unique ID for EA orders
 
 // --- Strategy Parameters ---
-input int      FastEMA             = 20;       // Fast EMA period
-input int      SlowEMA             = 50;       // Slow EMA period
+input int      FastEMA             = 7;        // Fast EMA period
+input int      SlowEMA             = 21;       // Slow EMA period
 input int      ADXPeriod           = 14;       // ADX period
-input double   ADXThreshold        = 25.0;     // Minimum ADX value to allow trades
+input double   ADXThreshold        = 20.0;     // Minimum ADX value to allow trades
 input int      ATRPeriod           = 14;       // ATR period
-input double   SLMultiplier        = 1.5;      // ATR multiplier for Stop Loss
-input double   TP_ATRMultiplier    = 3.0;      // ATR multiplier for Take Profit
+input double   SLMultiplier        = 2.0;      // ATR multiplier for Stop Loss
+input double   TP_ATRMultiplier    = 4.0;      // ATR multiplier for Take Profit
 
 // --- Filters ---
-input double   MaxSpread           = 3.0;      // Max spread in pips
-input int      MaxPositionsPerSymbol = 1;      // Max positions per symbol
-input int      MaxTotalPositions   = 3;        // Max total positions across all symbols
-input double   MaxDailyLossPercent = 3.0;      // Max daily loss % before stopping
+input double   MaxSpread           = 5.0;      // Max spread in pips (wider for XAU/XAG)
+input int      MaxPositionsPerSymbol = 2;      // Max positions per symbol
+input int      MaxTotalPositions   = 5;        // Max total positions across all symbols
+input double   MaxDailyLossPercent = 5.0;      // Max daily loss % before stopping
 
 // --- Time Filter ---
-input bool     EnableTimeFilter    = true;     // Enable/Disable trading hours restriction
-input int      StartHour           = 8;        // Trading start hour (Broker time)
-input int      EndHour             = 20;       // Trading end hour (Broker time)
+input bool     EnableTimeFilter    = false;    // Enable/Disable trading hours restriction (false=24h for metals)
+input int      StartHour           = 0;        // Trading start hour (Broker time)
+input int      EndHour             = 23;       // Trading end hour (Broker time)
 
 // --- Misc ---
-input int      Slippage            = 3;        // Maximum slippage in pips
+input int      Slippage            = 10;       // Maximum slippage in pips (higher for volatile metals)
 
 //+------------------------------------------------------------------+
 //| Global Variables                                                 |
@@ -97,7 +97,7 @@ int OnInit()
    lastDayOfMonth = Day();
    dailyLossStopReached = false;
 
-   Print("Trend Guardian EA v1.01 initialized successfully");
+   Print("Trend Guardian EA v1.02 initialized successfully (Aggressive Daily Trading mode)");
    Print("Magic Number: ", MagicNumber);
    Print("Risk: ", RiskPercent, "% per trade");
    Print("Fixed Lot Size: ", (FixedLotSize > 0.0) ? DoubleToString(FixedLotSize, 2) + " (fixed mode)" : "0.0 (risk-based mode)");
@@ -312,10 +312,11 @@ bool CanOpenTrade()
 //+------------------------------------------------------------------+
 double GetSpreadInPips()
 {
-   // Handle both 4-digit (Point=0.0001) and 5-digit (Point=0.00001) brokers
-   // For JPY pairs: Digits=3 means Point=0.001, pip=0.01 (10*Point)
+   // Handle fractional pip brokers (Digits=3/5) and metals (Digits=2 for XAUUSD)
+   // Standard: 4-digit forex (Digits=4) → pip = Point
+   // 5-digit forex (Digits=5), JPY (Digits=3), Gold (Digits=2) → pip = 10 * Point
    double pipSize = Point;
-   if(Digits == 3 || Digits == 5)
+   if(Digits == 2 || Digits == 3 || Digits == 5)
       pipSize = Point * 10.0;
    return (Ask - Bid) / pipSize;
 }
